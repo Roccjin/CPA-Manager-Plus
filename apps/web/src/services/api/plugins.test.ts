@@ -25,6 +25,7 @@ import {
   normalizePluginList,
   normalizePluginStoreList,
   normalizePluginStoreInstallResult,
+  pluginsApi,
   pluginStoreApi,
 } from './plugins';
 
@@ -132,6 +133,7 @@ describe('plugin API normalizers', () => {
       path: '/plugins/demo.so',
       fileDeleted: true,
       configuredRemoved: true,
+      configPreserved: false,
       restartRequired: false,
     });
 
@@ -145,6 +147,24 @@ describe('plugin API normalizers', () => {
       fileDeleted: true,
       configuredRemoved: false,
       restartRequired: true,
+    });
+
+    expect(
+      normalizePluginDeleteResult({
+        config_preserved: true,
+        configured_removed: false,
+      })
+    ).toMatchObject({
+      configPreserved: true,
+      configuredRemoved: false,
+    });
+  });
+
+  it('passes preserve_config when deleting with preserveConfig', async () => {
+    mocks.delete.mockResolvedValue({ status: 'deleted', config_preserved: true });
+    await pluginsApi.deletePlugin('demo', { preserveConfig: true });
+    expect(mocks.delete).toHaveBeenCalledWith('/plugins/demo', {
+      params: { preserve_config: true },
     });
   });
 

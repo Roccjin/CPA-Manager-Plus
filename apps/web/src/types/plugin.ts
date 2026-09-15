@@ -44,6 +44,9 @@ export interface PluginListEntry {
   configFields: PluginConfigField[];
   menus: PluginMenu[];
   metadata: PluginMetadata | null;
+  restartRequired?: boolean;
+  runtimeStatus?: string;
+  desiredVersion?: string;
 }
 
 export interface PluginListResponse {
@@ -58,6 +61,7 @@ export interface PluginDeleteResult {
   path: string;
   fileDeleted: boolean;
   configuredRemoved: boolean;
+  configPreserved: boolean;
   restartRequired: boolean;
 }
 

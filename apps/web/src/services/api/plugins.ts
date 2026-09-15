@@ -118,6 +118,9 @@ const normalizePluginEntry = (value: unknown): PluginListEntry | null => {
     registered: asBoolean(value.registered),
     enabled: value.enabled !== false,
     effectiveEnabled: asBoolean(value.effective_enabled ?? value.effectiveEnabled),
+    restartRequired: asBoolean(value.restart_required ?? value.restartRequired),
+    runtimeStatus: asString(value.runtime_status ?? value.runtimeStatus).trim() || undefined,
+    desiredVersion: asString(value.desired_version ?? value.desiredVersion).trim() || undefined,
     supportsOAuth,
     logo: asString(value.logo || metadata?.logo).trim(),
     configFields: configFields.length > 0 ? configFields : (metadata?.configFields ?? []),
@@ -152,6 +155,7 @@ export const normalizePluginDeleteResult = (value: unknown): PluginDeleteResult 
     path: asString(source.path).trim(),
     fileDeleted: asBoolean(source.file_deleted ?? source.fileDeleted),
     configuredRemoved: asBoolean(source.configured_removed ?? source.configuredRemoved),
+    configPreserved: asBoolean(source.config_preserved ?? source.configPreserved),
     restartRequired: asBoolean(source.restart_required ?? source.restartRequired),
   };
 };
@@ -295,8 +299,14 @@ export const pluginsApi = {
   updateEnabled: (id: string, enabled: boolean) =>
     apiClient.patch(`/plugins/${encodeURIComponent(id)}/enabled`, { enabled }),
 
-  async deletePlugin(id: string): Promise<PluginDeleteResult> {
-    const data = await apiClient.delete(`/plugins/${encodeURIComponent(id)}`);
+  async deletePlugin(
+    id: string,
+    options?: { preserveConfig?: boolean }
+  ): Promise<PluginDeleteResult> {
+    const data = await apiClient.delete(
+      `/plugins/${encodeURIComponent(id)}`,
+      options?.preserveConfig ? { params: { preserve_config: true } } : undefined
+    );
     return normalizePluginDeleteResult(data);
   },
 

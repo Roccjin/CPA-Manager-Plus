@@ -227,16 +227,17 @@ function InstalledPluginsView({
       waitForRegistration: boolean,
       pluginID?: string,
       predicate?: (plugin: PluginListEntry, response: PluginListResponse) => boolean
-    ) => {
+    ): Promise<{ timedOut: boolean }> => {
       if (waitForRegistration && pluginID && predicate) {
         const result = await waitForPluginState(pluginID, predicate);
         setData(result.response);
-        return;
+        return { timedOut: result.timedOut };
       }
       if (waitForRegistration) {
         await wait(PLUGIN_ENABLE_REFRESH_DELAY_MS);
       }
       await loadPlugins();
+      return { timedOut: false };
     },
     [loadPlugins]
   );
@@ -419,7 +420,7 @@ function InstalledPluginsView({
             return;
           }
 
-          const deleteResult = await pluginsApi.deletePlugin(plugin.id);
+          const deleteResult = await pluginsApi.deletePlugin(plugin.id, { preserveConfig: true });
           clearConfigCache();
           if (editingPlugin?.id === plugin.id) {
             setEditingPlugin(null);
@@ -435,16 +436,19 @@ function InstalledPluginsView({
           const sourceId = storeEntry.sourceId || undefined;
           const installResult = await pluginStoreApi.install(storeEntry.id, { sourceId });
           clearConfigCache();
-          await loadPluginsAfterMutation(
+          const waitResult = await loadPluginsAfterMutation(
             !installResult.restartRequired,
             plugin.id,
-            (item) => item.registered || item.configured || item.enabled
+            (item) => item.registered
           );
           notifyPluginResourcesChanged();
           if (installResult.restartRequired) {
             showNotification(t('plugin_management.reinstall_restart_required'), 'warning');
+          } else if (waitResult.timedOut) {
+            showNotification(t('plugin_management.activation_unconfirmed'), 'warning');
+          } else {
+            showNotification(t('plugin_management.reinstall_success'), 'success');
           }
-          showNotification(t('plugin_management.reinstall_success'), 'success');
         } catch (err: unknown) {
           const sourceRequired = getErrorDetailCode(err) === 'plugin_store_source_required';
           showNotification(

@@ -40,6 +40,7 @@ import {
 import {
   isPluginStoreInstallSettled,
   pluginVersionMatches,
+  waitForPluginState,
   waitForPluginStoreState,
 } from './pluginPolling';
 import { PluginInstallGateModal } from './components/PluginInstallGateModal';
@@ -805,7 +806,7 @@ export function PluginStorePage({
 
       setInstallingID(`${entryKey}:reinstall`);
       try {
-        const deleteResult = await pluginsApi.deletePlugin(entry.id);
+        const deleteResult = await pluginsApi.deletePlugin(entry.id, { preserveConfig: true });
         clearConfigCache();
         if (deleteResult.restartRequired) {
           setRestartRequiredIDs((current) =>
@@ -822,7 +823,6 @@ export function PluginStorePage({
           setRestartRequiredIDs((current) =>
             current.includes(entryKey) ? current : [...current, entryKey]
           );
-          showNotification(t('plugin_store.restart_required_notice'), 'warning');
         }
         await loadStore();
         notifyPluginResourcesChanged();
@@ -831,7 +831,16 @@ export function PluginStorePage({
             delayMs: PLUGIN_RESOURCES_SETTLE_REFRESH_DELAY_MS,
           });
         }
-        showNotification(t('plugin_store.reinstall_success'), 'success');
+        if (installResult.restartRequired) {
+          showNotification(t('plugin_store.restart_required_notice'), 'warning');
+        } else {
+          const waitResult = await waitForPluginState(entry.id, (plugin) => plugin.registered);
+          if (waitResult.timedOut) {
+            showNotification(t('plugin_store.activation_unconfirmed'), 'warning');
+          } else {
+            showNotification(t('plugin_store.reinstall_success'), 'success');
+          }
+        }
       } catch (err: unknown) {
         const sourceRequired = getErrorDetailCode(err) === 'plugin_store_source_required';
         showNotification(
