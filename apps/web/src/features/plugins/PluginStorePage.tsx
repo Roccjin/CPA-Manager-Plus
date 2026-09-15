@@ -806,32 +806,25 @@ export function PluginStorePage({
 
       setInstallingID(`${entryKey}:reinstall`);
       try {
-        const deleteResult = await pluginsApi.deletePlugin(entry.id, { preserveConfig: true });
+        const repairResult = await pluginsApi.repairPlugin(entry.id, {
+          mode: 'reinstall',
+          sourceId,
+          version: entry.version,
+        });
         clearConfigCache();
-        if (deleteResult.restartRequired) {
-          setRestartRequiredIDs((current) =>
-            current.includes(entryKey) ? current : [...current, entryKey]
-          );
-          await loadStore();
-          notifyPluginResourcesChanged();
-          showNotification(t('plugin_store.reinstall_delete_restart_required'), 'warning');
-          return;
-        }
-
-        const installResult = await pluginStoreApi.install(entry.id, { sourceId });
-        if (installResult.restartRequired) {
+        if (repairResult.restartRequired) {
           setRestartRequiredIDs((current) =>
             current.includes(entryKey) ? current : [...current, entryKey]
           );
         }
         await loadStore();
         notifyPluginResourcesChanged();
-        if (!installResult.restartRequired) {
+        if (!repairResult.restartRequired) {
           notifyPluginResourcesChanged({
             delayMs: PLUGIN_RESOURCES_SETTLE_REFRESH_DELAY_MS,
           });
         }
-        if (installResult.restartRequired) {
+        if (repairResult.restartRequired) {
           showNotification(t('plugin_store.restart_required_notice'), 'warning');
         } else {
           const waitResult = await waitForPluginState(entry.id, (plugin) => plugin.registered);
@@ -847,7 +840,7 @@ export function PluginStorePage({
           sourceRequired
             ? t('plugin_store.source_required')
             : hasRestartRequired(err)
-              ? t('plugin_store.reinstall_delete_restart_required')
+              ? t('plugin_store.restart_required_notice')
               : `${t('plugin_store.reinstall_failed')}: ${getErrorMessage(
                   err,
                   t('plugin_store.reinstall_failed')

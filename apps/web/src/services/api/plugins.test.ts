@@ -160,6 +160,21 @@ describe('plugin API normalizers', () => {
     });
   });
 
+  it('posts repair with retry or reinstall mode', async () => {
+    mocks.post.mockResolvedValue({
+      status: 'retrying',
+      id: 'demo',
+      mode: 'retry',
+      config_preserved: true,
+    });
+    await pluginsApi.repairPlugin('demo', { mode: 'retry' });
+    expect(mocks.post).toHaveBeenCalledWith('/plugins/demo/repair', {
+      mode: 'retry',
+      source: undefined,
+      version: undefined,
+    });
+  });
+
   it('passes preserve_config when deleting with preserveConfig', async () => {
     mocks.delete.mockResolvedValue({ status: 'deleted', config_preserved: true });
     await pluginsApi.deletePlugin('demo', { preserveConfig: true });

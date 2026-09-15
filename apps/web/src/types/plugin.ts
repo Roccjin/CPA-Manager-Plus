@@ -65,6 +65,17 @@ export interface PluginDeleteResult {
   restartRequired: boolean;
 }
 
+export interface PluginRepairResult {
+  status: string;
+  id: string;
+  path: string;
+  mode: string;
+  configPreserved: boolean;
+  restartRequired: boolean;
+  desiredVersion?: string;
+  version?: string;
+}
+
 export interface PluginStoreEntry {
   storeId: string;
   sourceId: string;

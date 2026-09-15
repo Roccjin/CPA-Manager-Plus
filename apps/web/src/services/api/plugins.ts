@@ -3,6 +3,7 @@ import type {
   PluginConfigField,
   PluginConfigObject,
   PluginDeleteResult,
+  PluginRepairResult,
   PluginListEntry,
   PluginListResponse,
   PluginMetadata,
@@ -308,6 +309,28 @@ export const pluginsApi = {
       options?.preserveConfig ? { params: { preserve_config: true } } : undefined
     );
     return normalizePluginDeleteResult(data);
+  },
+
+  async repairPlugin(
+    id: string,
+    options?: { mode?: 'retry' | 'reinstall'; sourceId?: string; version?: string }
+  ): Promise<PluginRepairResult> {
+    const data = await apiClient.post(`/plugins/${encodeURIComponent(id)}/repair`, {
+      mode: options?.mode || 'retry',
+      source: options?.sourceId,
+      version: options?.version,
+    });
+    const source = isRecord(data) ? data : {};
+    return {
+      status: asString(source.status).trim(),
+      id: asString(source.id).trim() || id,
+      path: asString(source.path).trim(),
+      mode: asString(source.mode).trim(),
+      configPreserved: asBoolean(source.config_preserved ?? source.configPreserved),
+      restartRequired: asBoolean(source.restart_required ?? source.restartRequired),
+      desiredVersion: asString(source.desired_version ?? source.desiredVersion).trim() || undefined,
+      version: asString(source.version).trim() || undefined,
+    };
   },
 
   async getConfig(id: string): Promise<PluginConfigObject> {

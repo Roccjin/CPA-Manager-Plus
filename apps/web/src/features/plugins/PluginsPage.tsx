@@ -394,6 +394,63 @@ function InstalledPluginsView({
     });
   };
 
+  const handleRepairPlugin = (plugin: PluginListEntry) => {
+    if (openingConfigID || mutatingID) return;
+
+    showConfirmation({
+      title: t('plugin_management.repair_confirm_title'),
+      message: t('plugin_management.repair_confirm_message', {
+        name: getPluginTitle(plugin),
+      }),
+      confirmText: t('plugin_management.repair_plugin'),
+      cancelText: t('common.cancel'),
+      onConfirm: async () => {
+        const mutationKey = `${plugin.id}:repair`;
+        setMutatingID(mutationKey);
+        try {
+          const mode = plugin.path && !plugin.registered ? 'retry' : 'reinstall';
+          let sourceId: string | undefined;
+          let version: string | undefined;
+          if (mode === 'reinstall') {
+            const store = await pluginStoreApi.list();
+            const candidates = store.plugins.filter((entry) => entry.id === plugin.id);
+            const storeEntry =
+              candidates.find((entry) => entry.installed) ??
+              (candidates.length === 1 ? candidates[0] : null);
+            sourceId = storeEntry?.sourceId || undefined;
+            version = storeEntry?.version || undefined;
+          }
+          const repairResult = await pluginsApi.repairPlugin(plugin.id, { mode, sourceId, version });
+          clearConfigCache();
+          const waitResult = await loadPluginsAfterMutation(
+            !repairResult.restartRequired,
+            plugin.id,
+            (item) => item.registered
+          );
+          notifyPluginResourcesChanged();
+          if (repairResult.restartRequired) {
+            showNotification(t('plugin_management.repair_restart_required'), 'warning');
+          } else if (waitResult.timedOut) {
+            showNotification(t('plugin_management.activation_unconfirmed'), 'warning');
+          } else {
+            showNotification(t('plugin_management.repair_success'), 'success');
+          }
+        } catch (err: unknown) {
+          showNotification(
+            `${t('plugin_management.repair_failed')}: ${getErrorMessage(
+              err,
+              t('plugin_management.repair_failed')
+            )}`,
+            hasRestartRequired(err) ? 'warning' : 'error'
+          );
+          throw err;
+        } finally {
+          setMutatingID('');
+        }
+      },
+    });
+  };
+
   const handleReinstallPlugin = (plugin: PluginListEntry) => {
     if (openingConfigID || mutatingID) return;
 
@@ -420,29 +477,20 @@ function InstalledPluginsView({
             return;
           }
 
-          const deleteResult = await pluginsApi.deletePlugin(plugin.id, { preserveConfig: true });
-          clearConfigCache();
-          if (editingPlugin?.id === plugin.id) {
-            setEditingPlugin(null);
-            setDraft(null);
-          }
-          if (deleteResult.restartRequired) {
-            await loadPluginsAfterMutation(false);
-            notifyPluginResourcesChanged();
-            showNotification(t('plugin_management.reinstall_delete_restart_required'), 'warning');
-            return;
-          }
-
           const sourceId = storeEntry.sourceId || undefined;
-          const installResult = await pluginStoreApi.install(storeEntry.id, { sourceId });
+          const repairResult = await pluginsApi.repairPlugin(plugin.id, {
+            mode: 'reinstall',
+            sourceId,
+            version: storeEntry.version,
+          });
           clearConfigCache();
           const waitResult = await loadPluginsAfterMutation(
-            !installResult.restartRequired,
+            !repairResult.restartRequired,
             plugin.id,
             (item) => item.registered
           );
           notifyPluginResourcesChanged();
-          if (installResult.restartRequired) {
+          if (repairResult.restartRequired) {
             showNotification(t('plugin_management.reinstall_restart_required'), 'warning');
           } else if (waitResult.timedOut) {
             showNotification(t('plugin_management.activation_unconfirmed'), 'warning');
@@ -455,7 +503,7 @@ function InstalledPluginsView({
             sourceRequired
               ? t('plugin_management.reinstall_source_required')
               : hasRestartRequired(err)
-                ? t('plugin_management.reinstall_delete_restart_required')
+                ? t('plugin_management.reinstall_restart_required')
                 : `${t('plugin_management.reinstall_failed')}: ${getErrorMessage(
                     err,
                     t('plugin_management.reinstall_failed')
@@ -784,6 +832,13 @@ function InstalledPluginsView({
                     },
                   ]
                 : []),
+              {
+                key: 'repair',
+                label: t('plugin_management.repair_plugin'),
+                icon: <IconRefreshCw size={14} />,
+                disabled: !connected || actionBusy,
+                onClick: () => handleRepairPlugin(plugin),
+              },
               {
                 key: 'reinstall',
                 label: t('plugin_management.reinstall_plugin'),
